@@ -29,13 +29,22 @@ flowchart LR
 
 ```text
 crop-recommendation-system/
-|-- app.py
+|-- app.py                  # Streamlit entrypoint
 |-- requirements.txt
 |-- README.md
 |-- .gitignore
-|-- model.pkl
-|-- minmaxscaler.pkl
-`-- standscaler.pkl
+|-- models/
+|   |-- model.pkl
+|   |-- minmaxscaler.pkl
+|   `-- standscaler.pkl
+|-- src/
+|   `-- crop_recommender/
+|       |-- app.py          # UI orchestration
+|       |-- config.py       # model paths, input ranges, crop labels
+|       `-- predictor.py    # artifact loading and prediction logic
+|-- tests/
+|   `-- test_predictor.py
+`-- .github/workflows/ci.yml
 ```
 
 ## Quick Start
@@ -68,22 +77,30 @@ Nitrogen, Phosphorus, Potassium, Temperature, Humidity, pH, Rainfall
 ## Development Workflow
 
 ```bash
-python -m compileall app.py
+set PYTHONPATH=src
+pytest -q
+python -m compileall app.py src
 streamlit run app.py
+```
+
+On macOS/Linux:
+
+```bash
+export PYTHONPATH=src
 ```
 
 ## Roadmap
 
 - Add training notebook and dataset provenance
 - Add model metrics and model card
-- Add tests for input shape and crop label mapping
+- Add model-card metrics and input-distribution checks
 - Replace pickle artifacts with a safer reproducible training/export workflow
 
 ## Troubleshooting
 
 | Issue | Fix |
 |---|---|
-| Missing artifact error | Confirm `model.pkl`, `minmaxscaler.pkl`, and `standscaler.pkl` are present. |
+| Missing artifact error | Confirm the files are present in `models/`. |
 | Clone is slow | The tracked virtual environment was removed in the cleanup commit; pull the latest version. |
 | Prediction label is unknown | Check that the label mapping matches the trained model labels. |
 
