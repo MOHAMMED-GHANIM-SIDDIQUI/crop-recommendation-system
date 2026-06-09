@@ -1,50 +1,111 @@
-import streamlit as st
-import numpy as np
+from pathlib import Path
 import pickle
 
-# importing model
-model = pickle.load(open('model.pkl', 'rb'))
-sc = pickle.load(open('standscaler.pkl', 'rb'))
-ms = pickle.load(open('minmaxscaler.pkl', 'rb'))
+import numpy as np
+import streamlit as st
 
-# Create Streamlit interface
-def main():
+
+APP_DIR = Path(__file__).resolve().parent
+MODEL_PATH = APP_DIR / "model.pkl"
+STANDARD_SCALER_PATH = APP_DIR / "standscaler.pkl"
+MINMAX_SCALER_PATH = APP_DIR / "minmaxscaler.pkl"
+
+CROP_LABELS = {
+    1: "Rice",
+    2: "Maize",
+    3: "Jute",
+    4: "Cotton",
+    5: "Coconut",
+    6: "Papaya",
+    7: "Orange",
+    8: "Apple",
+    9: "Muskmelon",
+    10: "Watermelon",
+    11: "Grapes",
+    12: "Mango",
+    13: "Banana",
+    14: "Pomegranate",
+    15: "Lentil",
+    16: "Blackgram",
+    17: "Mungbean",
+    18: "Mothbeans",
+    19: "Pigeonpeas",
+    20: "Kidneybeans",
+    21: "Chickpea",
+    22: "Coffee",
+}
+
+FEATURES = [
+    ("Nitrogen (N)", 0.0, 200.0, 50.0),
+    ("Phosphorus (P)", 0.0, 200.0, 50.0),
+    ("Potassium (K)", 0.0, 250.0, 50.0),
+    ("Temperature (C)", -10.0, 60.0, 25.0),
+    ("Humidity (%)", 0.0, 100.0, 60.0),
+    ("pH", 0.0, 14.0, 6.5),
+    ("Rainfall (mm)", 0.0, 500.0, 100.0),
+]
+
+
+@st.cache_resource(show_spinner=False)
+def load_artifacts():
+    missing = [
+        path.name
+        for path in [MODEL_PATH, STANDARD_SCALER_PATH, MINMAX_SCALER_PATH]
+        if not path.exists()
+    ]
+    if missing:
+        raise FileNotFoundError(f"Missing artifact(s): {', '.join(missing)}")
+
+    with MODEL_PATH.open("rb") as model_file:
+        model = pickle.load(model_file)
+    with STANDARD_SCALER_PATH.open("rb") as scaler_file:
+        standard_scaler = pickle.load(scaler_file)
+    with MINMAX_SCALER_PATH.open("rb") as scaler_file:
+        minmax_scaler = pickle.load(scaler_file)
+    return model, standard_scaler, minmax_scaler
+
+
+def predict_crop(feature_values: list[float]) -> str:
+    model, standard_scaler, minmax_scaler = load_artifacts()
+    feature_array = np.asarray(feature_values, dtype=float).reshape(1, -1)
+    scaled_features = minmax_scaler.transform(feature_array)
+    final_features = standard_scaler.transform(scaled_features)
+    prediction = int(model.predict(final_features)[0])
+    return CROP_LABELS.get(prediction, "Unknown crop")
+
+
+def main() -> None:
+    st.set_page_config(page_title="Crop Recommendation System", layout="centered")
     st.title("Crop Recommendation System")
-    
-    # Creating input fields for features
-    Nitrogen = st.number_input('Nitrogen (N)', min_value=0.0, step=0.1)
-    Phosphorus = st.number_input('Phosphorus (P)', min_value=0.0, step=0.1)
-    Potassium = st.number_input('Potassium (K)', min_value=0.0, step=0.1)
-    Temperature = st.number_input('Temperature', min_value=0.0, step=0.1)
-    Humidity = st.number_input('Humidity', min_value=0.0, step=0.1)
-    Ph = st.number_input('pH', min_value=0.0, step=0.1)
-    Rainfall = st.number_input('Rainfall', min_value=0.0, step=0.1)
+    st.caption("Educational ML app that recommends a crop based on soil and climate inputs.")
 
-    # Creating a prediction button
-    if st.button('Predict'):
-        # Collecting feature list from inputs
-        feature_list = [Nitrogen, Phosphorus, Potassium, Temperature, Humidity, Ph, Rainfall]
-        single_pred = np.array(feature_list).reshape(1, -1)
+    st.info(
+        "This is a portfolio demonstration. Local agronomy decisions should also use field testing, "
+        "regional expertise, and current environmental conditions."
+    )
 
-        # Scaling the features
-        scaled_features = ms.transform(single_pred)
-        final_features = sc.transform(scaled_features)
+    values = []
+    for label, min_value, max_value, default_value in FEATURES:
+        values.append(
+            st.number_input(
+                label,
+                min_value=min_value,
+                max_value=max_value,
+                value=default_value,
+                step=0.1,
+            )
+        )
 
-        # Making the prediction
-        prediction = model.predict(final_features)
+    if st.button("Predict Crop", type="primary"):
+        try:
+            crop = predict_crop(values)
+            if crop == "Unknown crop":
+                st.warning("The model returned a label that is not mapped to a crop name.")
+            else:
+                st.success(f"{crop} is the recommended crop for the provided conditions.")
+        except Exception as exc:
+            st.error(f"Prediction failed: {exc}")
 
-        # Define the crop dictionary
-        crop_dict = {1: "Rice", 2: "Maize", 3: "Jute", 4: "Cotton", 5: "Coconut", 6: "Papaya", 7: "Orange",
-                     8: "Apple", 9: "Muskmelon", 10: "Watermelon", 11: "Grapes", 12: "Mango", 13: "Banana",
-                     14: "Pomegranate", 15: "Lentil", 16: "Blackgram", 17: "Mungbean", 18: "Mothbeans",
-                     19: "Pigeonpeas", 20: "Kidneybeans", 21: "Chickpea", 22: "Coffee"}
 
-        # Displaying the result
-        if prediction[0] in crop_dict:
-            crop = crop_dict[prediction[0]]
-            st.success(f"{crop} is the best crop to be cultivated with the provided data.")
-        else:
-            st.error("Sorry, we could not determine the best crop to be cultivated with the provided data.")
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
